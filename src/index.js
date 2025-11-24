@@ -25,6 +25,7 @@
 const net = require('net');
 const msgpack = require('msgpack-lite');
 const EventEmitter = require('events');
+const { jsonToToon, toonToJson } = require('./toon');
 
 // Protocol constants
 const MAGIC = 0x4E455841;  // "NEXA"
@@ -41,6 +42,8 @@ const MSG_VECTOR_SEARCH = 0x07;
 const MSG_BATCH_WRITE = 0x08;
 const MSG_PING = 0x09;
 const MSG_DISCONNECT = 0x0A;
+const MSG_QUERY_TOON = 0x0B;
+const MSG_EXPORT_TOON = 0x0C;
 
 // Server → Client response types
 const MSG_SUCCESS = 0x81;
@@ -315,6 +318,36 @@ class NexaClient extends EventEmitter {
   }
 
   /**
+   * Query documents with TOON format response.
+   * TOON format reduces token count by 40-50% for LLM applications.
+   *
+   * @param {string} collection - Collection name
+   * @param {Object} filters - Query filters
+   * @param {number} limit - Max results (default: 100)
+   * @returns {Promise<Object>} Response with TOON data and token stats
+   */
+  async queryToon(collection, filters = {}, limit = 100) {
+    return this._sendMessage(MSG_QUERY_TOON, {
+      collection,
+      filters,
+      limit
+    });
+  }
+
+  /**
+   * Export entire collection to TOON format.
+   * Perfect for AI/ML pipelines that need efficient data transfer.
+   *
+   * @param {string} collection - Collection name
+   * @returns {Promise<Object>} Response with TOON data and token stats
+   */
+  async exportToon(collection) {
+    return this._sendMessage(MSG_EXPORT_TOON, {
+      collection
+    });
+  }
+
+  /**
    * Send binary message and wait for response.
    *
    * @private
@@ -429,3 +462,5 @@ class NexaClient extends EventEmitter {
 }
 
 module.exports = NexaClient;
+module.exports.jsonToToon = jsonToToon;
+module.exports.toonToJson = toonToJson;
