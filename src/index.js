@@ -11,7 +11,12 @@
  * Usage:
  *   const NexaClient = require('nexaclient');
  *
- *   const db = new NexaClient({ host: 'localhost', port: 6970 });
+ *   const db = new NexaClient({
+ *     host: 'localhost',
+ *     port: 6970,
+ *     username: 'root',
+ *     password: 'nexadb123'
+ *   });
  *   await db.connect();
  *
  *   const user = await db.create('users', {
@@ -60,6 +65,8 @@ class NexaClient extends EventEmitter {
    * @param {Object} options - Client options
    * @param {string} options.host - Server host (default: 'localhost')
    * @param {number} options.port - Server port (default: 6970)
+   * @param {string} options.username - Username for authentication (default: 'root')
+   * @param {string} options.password - Password for authentication (default: 'nexadb123')
    * @param {number} options.timeout - Connection timeout in ms (default: 30000)
    * @param {boolean} options.autoReconnect - Auto-reconnect on disconnect (default: true)
    */
@@ -68,6 +75,8 @@ class NexaClient extends EventEmitter {
 
     this.host = options.host || 'localhost';
     this.port = options.port || 6970;
+    this.username = options.username || 'root';
+    this.password = options.password || 'nexadb123';
     this.timeout = options.timeout || 30000;
     this.autoReconnect = options.autoReconnect !== false;
 
@@ -177,14 +186,14 @@ class NexaClient extends EventEmitter {
   }
 
   /**
-   * Send handshake message.
+   * Send authentication handshake.
    *
    * @private
    */
   async _sendConnect() {
     return this._sendMessage(MSG_CONNECT, {
-      client: 'nexaclient',
-      version: '1.0.0'
+      username: this.username,
+      password: this.password
     });
   }
 

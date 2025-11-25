@@ -12,7 +12,9 @@ async function main() {
   // Create client
   const db = new NexaClient({
     host: 'localhost',
-    port: 6970
+    port: 6970,
+    username: 'root',
+    password: 'nexadb123'
   });
 
   try {

@@ -23,7 +23,12 @@ npm install nexaclient
 const NexaClient = require('nexaclient');
 
 // Create client
-const db = new NexaClient({ host: 'localhost', port: 6970 });
+const db = new NexaClient({
+  host: 'localhost',
+  port: 6970,
+  username: 'root',
+  password: 'nexadb123'
+});
 
 // Connect
 await db.connect();
@@ -63,6 +68,8 @@ const db = new NexaClient(options);
 **Options:**
 - `host` (string) - Server host (default: 'localhost')
 - `port` (number) - Server port (default: 6970)
+- `username` (string) - Username for authentication (default: 'root')
+- `password` (string) - Password for authentication (default: 'nexadb123')
 - `timeout` (number) - Connection timeout in ms (default: 30000)
 - `autoReconnect` (boolean) - Auto-reconnect on disconnect (default: true)
 
