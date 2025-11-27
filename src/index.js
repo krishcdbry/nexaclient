@@ -49,6 +49,8 @@ const MSG_PING = 0x09;
 const MSG_DISCONNECT = 0x0A;
 const MSG_QUERY_TOON = 0x0B;
 const MSG_EXPORT_TOON = 0x0C;
+const MSG_SUBSCRIBE_CHANGES = 0x30;
+const MSG_UNSUBSCRIBE_CHANGES = 0x31;
 
 // Server → Client response types
 const MSG_SUCCESS = 0x81;
@@ -56,6 +58,7 @@ const MSG_ERROR = 0x82;
 const MSG_NOT_FOUND = 0x83;
 const MSG_DUPLICATE = 0x84;
 const MSG_PONG = 0x88;
+const MSG_CHANGE_EVENT = 0x90;
 
 
 class NexaClient extends EventEmitter {
@@ -357,6 +360,127 @@ class NexaClient extends EventEmitter {
   }
 
   /**
+   * Watch for database changes (MongoDB-style change streams).
+   *
+   * Returns an async generator that yields change events as they happen.
+   * Works over the network - no filesystem access needed!
+   *
+   * @param {string|null} collection - Collection name to watch (default: watch all collections)
+   * @param {Array<string>|null} operations - Operations to watch (default: ['insert', 'update', 'delete'])
+   * @returns {AsyncGenerator<Object>} Async generator that yields change events
+   *
+   * @example
+   * // Watch all collections
+   * for await (const change of db.watch()) {
+   *   console.log(`Change in ${change.ns.coll}: ${change.operationType}`);
+   * }
+   *
+   * @example
+   * // Watch specific collection
+   * for await (const change of db.watch('orders')) {
+   *   if (change.operationType === 'insert') {
+   *     console.log('New order:', change.fullDocument);
+   *   }
+   * }
+   *
+   * @example
+   * // Watch specific operations
+   * for await (const change of db.watch('users', ['insert', 'update'])) {
+   *   console.log('User changed:', change);
+   * }
+   *
+   * Change Event Format:
+   * {
+   *   operationType: 'insert',  // insert, update, delete, dropCollection
+   *   ns: { db: 'nexadb', coll: 'orders' },
+   *   documentKey: { _id: 'abc123' },
+   *   fullDocument: {...},  // Only for insert/update
+   *   updateDescription: {...},  // Only for update
+   *   timestamp: 1700000000.123
+   * }
+   */
+  async *watch(collection = null, operations = null) {
+    if (!this.connected) {
+      throw new Error('Not connected to NexaDB');
+    }
+
+    // Subscribe to changes
+    try {
+      await this._sendMessage(MSG_SUBSCRIBE_CHANGES, {
+        collection,
+        operations: operations || ['insert', 'update', 'delete']
+      });
+    } catch (err) {
+      throw new Error(`Failed to subscribe to changes: ${err.message}`);
+    }
+
+    // Queue for change events
+    const changeQueue = [];
+    let resolveNext = null;
+    let streamClosed = false;
+    let streamError = null;
+
+    // Handle change events
+    const changeHandler = (event) => {
+      if (resolveNext) {
+        // Someone is waiting for an event
+        resolveNext(event);
+        resolveNext = null;
+      } else {
+        // Queue the event
+        changeQueue.push(event);
+      }
+    };
+
+    // Register change event handler
+    this.on('change', changeHandler);
+
+    try {
+      // Yield events as they arrive
+      while (!streamClosed) {
+        // Check for errors
+        if (streamError) {
+          throw streamError;
+        }
+
+        let event;
+        if (changeQueue.length > 0) {
+          // Get event from queue
+          event = changeQueue.shift();
+        } else {
+          // Wait for next event
+          event = await new Promise((resolve, reject) => {
+            resolveNext = resolve;
+
+            // Check for errors periodically
+            const checkInterval = setInterval(() => {
+              if (streamError) {
+                clearInterval(checkInterval);
+                reject(streamError);
+              }
+              if (!this.connected) {
+                clearInterval(checkInterval);
+                reject(new Error('Connection closed'));
+              }
+            }, 100);
+          });
+        }
+
+        yield event;
+      }
+    } finally {
+      // Cleanup: unsubscribe and remove handler
+      this.off('change', changeHandler);
+
+      try {
+        await this._sendMessage(MSG_UNSUBSCRIBE_CHANGES, {});
+      } catch (err) {
+        // Ignore errors during cleanup
+      }
+    }
+  }
+
+  /**
    * Send binary message and wait for response.
    *
    * @private
@@ -448,6 +572,12 @@ class NexaClient extends EventEmitter {
    * @param {Object} data - Message data
    */
   _handleMessage(msgType, data) {
+    // Handle change events (unsolicited messages)
+    if (msgType === MSG_CHANGE_EVENT) {
+      this.emit('change', data);
+      return;
+    }
+
     // Get pending request
     const request = this.pendingRequests.shift();
 
