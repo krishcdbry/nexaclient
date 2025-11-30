@@ -1,14 +1,16 @@
 # NexaClient
 
-Official JavaScript client for NexaDB - The high-performance, easy-to-use database.
+Official JavaScript client for NexaDB v3.0.0 - The high-performance, easy-to-use database.
 
 ## Features
 
+- **Multi-database support** - Manage multiple isolated databases in one instance (NEW in v3.0.0)
 - **3-10x faster than HTTP/REST** - Binary protocol with MessagePack encoding
 - **Persistent TCP connections** - No HTTP overhead
 - **Automatic reconnection** - Built-in connection management
 - **Connection pooling** - Handle 1000+ concurrent operations
-- **Type-safe** - Full TypeScript support (coming soon)
+- **Vector search** - Built-in HNSW vector similarity search
+- **TOON format** - 40-50% token reduction for LLM applications
 - **Promise-based API** - Modern async/await syntax
 
 ## Installation
@@ -236,8 +238,27 @@ MIT
 ## Links
 
 - [NexaDB GitHub](https://github.com/krishcdbry/nexadb)
-- [Documentation](https://nexadb.dev/docs)
+- [Documentation](https://nexadb.io/docs)
 - [Issues](https://github.com/krishcdbry/nexaclient/issues)
+
+## Multi-Database Support (v3.0.0)
+
+```javascript
+// Create and manage multiple databases
+await db.createDatabase('tenant_acme');
+await db.createDatabase('tenant_globex');
+
+// Insert data into specific database
+await db.create('users', { name: 'Alice' }, { database: 'tenant_acme' });
+await db.create('users', { name: 'Bob' }, { database: 'tenant_globex' });
+
+// Query from specific database
+const acmeUsers = await db.query('users', {}, { database: 'tenant_acme' });
+const globexUsers = await db.query('users', {}, { database: 'tenant_globex' });
+
+// List all databases
+const databases = await db.listDatabases();
+```
 
 ## Contributing
 
@@ -247,5 +268,5 @@ Contributions are welcome! Please open an issue or PR on GitHub.
 
 For support, please:
 - Open an issue on [GitHub](https://github.com/krishcdbry/nexaclient/issues)
-- Join our [Discord](https://discord.gg/nexadb) (coming soon)
-- Email: support@nexadb.dev
+- Website: https://nexadb.io
+- Email: krishcdbry@gmail.com
